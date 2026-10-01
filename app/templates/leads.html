@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Лиды — Мини-CRM{% endblock %}
+{% block content %}
+
+<div class="card">
+  <form method="get" action="/leads" class="toolbar">
+    {% if active_tag %}<input type="hidden" name="tag" value="{{ active_tag }}">{% endif %}
+    <div style="flex: 1 1 220px">
+      <label for="q">Поиск по имени, контакту или запросу</label>
+      <input type="text" id="q" name="q" value="{{ q }}" maxlength="256">
+    </div>
+    <button type="submit">Найти</button>
+  </form>
+  <h2>Фильтр по тегу</h2>
+  {% if tags %}
+    <a class="chip {% if not active_tag %}active{% endif %}" href="/leads?q={{ q | urlencode }}">все</a>
+    {% for tag in tags %}
+      <a class="chip {% if active_tag == tag.name %}active{% endif %}"
+         href="/leads?tag={{ tag.name | urlencode }}&amp;q={{ q | urlencode }}">{{ tag.name }}</a>
+    {% endfor %}
+  {% else %}
+    <p class="muted">Тегов пока нет. Добавьте их в карточке лида.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Лиды{% if active_tag %} с тегом «{{ active_tag }}»{% endif %}
+    <span class="muted">— {{ total }}</span></h2>
+  {% if leads %}
+  <table>
+    <tr>
+      <th>Имя</th><th>Контакт</th><th>Запрос</th>
+      <th>Теги</th><th>Источник</th><th>Статус</th><th>Создан</th>
+    </tr>
+    {% for lead in leads %}
+    <tr>
+      <td><a class="lead" href="/leads/{{ lead.id }}">{{ lead.name }}</a></td>
+      <td>{{ lead.contact or "—" }}</td>
+      <td>{{ lead.request | truncate(90) or "—" }}</td>
+      <td>
+        {% for tag in lead.tags %}
+          <a class="chip" href="/leads?tag={{ tag.name | urlencode }}&amp;q={{ q | urlencode }}">{{ tag.name }}</a>
+        {% else %}<span class="muted">—</span>{% endfor %}
+      </td>
+      <td class="muted">{{ lead.source_label }}</td>
+      <td class="muted">{{ lead.status_label }}</td>
+      <td class="muted">{{ lead.created_at | local_dt }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+    {% if q.strip() or active_tag %}
+    <p class="muted">По вашему запросу лидов не найдено. <a href="/leads">Сбросить поиск и фильтр</a></p>
+    {% else %}
+    <p class="muted">Пока ни одного лида. Добавьте первого ниже или отправьте заявку боту.</p>
+    {% endif %}
+  {% endif %}
+  {% if pages > 1 %}
+  <nav aria-label="Страницы лидов">
+    {% if page > 1 %}<a href="/leads?page={{ page - 1 }}&amp;q={{ q | urlencode }}{% if active_tag %}&amp;tag={{ active_tag | urlencode }}{% endif %}">← Назад</a>{% endif %}
+    <span class="muted">Страница {{ page }} из {{ pages }}</span>
+    {% if page < pages %}<a href="/leads?page={{ page + 1 }}&amp;q={{ q | urlencode }}{% if active_tag %}&amp;tag={{ active_tag | urlencode }}{% endif %}">Далее →</a>{% endif %}
+  </nav>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Добавить лида вручную</h2>
+  <form method="post" action="/leads">
+    <div class="row">
+      <div><label for="name">Имя</label>
+        <input type="text" id="name" name="name" maxlength="128" required></div>
+      <div><label for="contact">Контакт</label>
+        <input type="text" id="contact" name="contact" maxlength="128" placeholder="телефон, почта или @username"></div>
+    </div>
+    <div class="row">
+      <div><label for="request_text">Запрос</label>
+        <textarea id="request_text" name="request_text"></textarea></div>
+    </div>
+    <div class="row">
+      <div><label for="tags">Теги через запятую</label>
+        <input type="text" id="tags" name="tags" placeholder="сайт, срочно"></div>
+    </div>
+    <button type="submit">Создать лида</button>
+  </form>
+</div>
+
+{% endblock %}

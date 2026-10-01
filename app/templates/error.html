@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Ошибка {{ code }} — Мини-CRM{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Ошибка {{ code }}</h2>
+  <p>{{ message }}</p>
+  <a href="/leads">Вернуться к списку лидов</a>
+</div>
+{% endblock %}

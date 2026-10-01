@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ lead.name }} — Мини-CRM{% endblock %}
+{% block content %}
+
+<p class="muted"><a href="/leads">← ко всем лидам</a></p>
+
+<div class="card">
+  <h2>Лид №{{ lead.id }}
+    <span class="muted">— {{ lead.source_label }}, {{ lead.created_at | local_dt("%d.%m.%Y %H:%M") }}</span>
+  </h2>
+  <form method="post" action="/leads/{{ lead.id }}">
+    <div class="row">
+      <div><label for="name">Имя</label>
+        <input type="text" id="name" name="name" maxlength="128" value="{{ lead.name }}" required></div>
+      <div><label for="contact">Контакт</label>
+        <input type="text" id="contact" name="contact" maxlength="128" value="{{ lead.contact }}"></div>
+      <div><label for="lead_status">Статус</label>
+        <select id="lead_status" name="lead_status">
+          {% for value, label in statuses %}
+            <option value="{{ value }}" {% if lead.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select></div>
+    </div>
+    <div class="row">
+      <div><label for="request_text">Запрос</label>
+        <textarea id="request_text" name="request_text">{{ lead.request }}</textarea></div>
+    </div>
+    <button type="submit">Сохранить</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Теги</h2>
+  <div>
+    {% for tag in lead.tags %}
+      <div class="chip">
+        <a href="/leads?tag={{ tag.name | urlencode }}">{{ tag.name }}</a>
+        <form class="inline" method="post" action="/leads/{{ lead.id }}/tags/{{ tag.id }}/delete">
+          <button class="link" type="submit" title="Убрать тег">×</button>
+        </form>
+      </div>
+    {% else %}
+      <span class="muted">Тегов нет.</span>
+    {% endfor %}
+  </div>
+  <form method="post" action="/leads/{{ lead.id }}/tags" class="toolbar">
+    <div style="flex: 1 1 220px">
+      <label for="tag">Новый тег</label>
+      <input type="text" id="tag" name="tag" placeholder="например: срочно" required>
+    </div>
+    <button type="submit">Добавить</button>
+  </form>
+</div>
+
+{% endblock %}

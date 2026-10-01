@@ -1,0 +1,12 @@
+.env
+*.session
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+__pycache__/
+.venv/
+preview_*.html
+*.log
+.pytest_cache/
+deploy/probe.py

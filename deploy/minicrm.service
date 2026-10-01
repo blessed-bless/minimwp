@@ -1,0 +1,23 @@
+[Unit]
+Description=Мини-CRM для заявок агентства
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=minicrm
+Group=minicrm
+WorkingDirectory=/opt/minicrm
+EnvironmentFile=/etc/minicrm.env
+ExecStart=/opt/minicrm/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8012
+Restart=always
+RestartSec=5
+StateDirectory=minicrm
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/minicrm
+
+[Install]
+WantedBy=multi-user.target
