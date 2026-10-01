@@ -10,3 +10,5 @@ preview_*.html
 *.log
 .pytest_cache/
 deploy/probe.py
+tz.docx
+deploy/ssh_run.py
