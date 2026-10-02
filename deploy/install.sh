@@ -17,6 +17,9 @@ echo "--- пользователь службы ---"
 id -u minicrm >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin minicrm
 
 echo "--- код ---"
+# Каталог принадлежит minicrm, а git работает от root: без этого он ругается
+# на dubious ownership и обновление кода падает.
+git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
 if [ -d "$APP_DIR/.git" ]; then
     git -C "$APP_DIR" fetch --quiet origin
     git -C "$APP_DIR" reset --hard --quiet origin/main
