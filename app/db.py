@@ -1,4 +1,4 @@
-"""Асинхронный движок и фабрика сессий SQLAlchemy."""
+"""Async SQLAlchemy engine and session factory."""
 
 from __future__ import annotations
 
@@ -23,16 +23,15 @@ def _py_lower(value: Any) -> Any:
 
 
 if IS_SQLITE:
-    # Встроенный lower() в SQLite умеет только латиницу: lower('Ирина') вернёт 'Ирина'.
-    # Регистрируем питоновский lower() как SQL-функцию, иначе поиск по-русски
-    # зависит от регистра. На Postgres это не нужно — там ILIKE знает юникод.
+    # SQLite lower() is ASCII-only; register Python lower() so RU search is case-insensitive.
+    # Postgres does not need this — ILIKE already understands Unicode.
     @event.listens_for(engine.sync_engine, "connect")
     def _register_pylower(dbapi_connection: Any, _record: Any) -> None:
         dbapi_connection.create_function("pylower", 1, _py_lower, deterministic=True)
 
 
 def lower_expr(column: ColumnElement[str]) -> ColumnElement[str]:
-    """Регистронезависимое приведение, работающее и с кириллицей."""
+    """Case-fold that works with Cyrillic too."""
     return func.pylower(column) if IS_SQLITE else func.lower(column)
 
 
@@ -46,6 +45,6 @@ async def dispose_db() -> None:
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """Зависимость FastAPI: сессия на один запрос."""
+    """FastAPI dependency: one session per request."""
     async with SessionLocal() as session:
         yield session

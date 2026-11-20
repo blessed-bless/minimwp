@@ -1,4 +1,4 @@
-"""Telegram-бот, собирающий заявку в три шага и кладущий её в CRM.
+"""Telegram bot that collects a three-step application and stores it in CRM.
 
 Работает на Bot API через long polling (httpx), без api_id/api_hash:
 боту нужен только токен от @BotFather. Telethon используется отдельно,
@@ -30,7 +30,7 @@ Step: TypeAlias = Literal["name", "contact", "request", "confirm"]
 API_ROOT = "https://api.telegram.org/bot{token}/{method}"
 YES = {"да", "ага", "yes", "y", "ок", "ok", "+", "отправляй"}
 NO = {"нет", "no", "n", "отмена"}
-# Сколько последних подтверждений помним, чтобы не создать лид дважды при сбое отправки.
+# How many recent confirmations to remember so a send failure does not create a duplicate lead.
 COMPLETED_LIMIT = 500
 
 ASK_NAME = "Привет! Оставьте заявку — задам три коротких вопроса.\n\nКак вас зовут?"
@@ -59,7 +59,7 @@ QUESTIONS: dict[Step, str] = {
 
 @dataclass
 class Draft:
-    """Черновик заявки. Живёт в памяти процесса — перезапуск обнуляет диалоги."""
+    """Application draft. Lives in process memory — restart clears dialogs."""
 
     step: Step = "name"
     name: str = ""
@@ -68,7 +68,7 @@ class Draft:
 
 
 def phone_from_contact(message: dict[str, JSONValue]) -> str:
-    """Телефон из нативной карточки контакта Telegram — ответ на вопрос о связи."""
+    """Phone from Telegram contact card — answer to the contact question."""
     contact = message.get("contact")
     if not isinstance(contact, dict):
         return ""
@@ -108,11 +108,12 @@ class LeadBot:
                     try:
                         await self._handle(client, update)
                     except Exception:
-                        # Один сломанный апдейт не должен ронять поллинг. Шаг при этом
-                        # не сдвинут, поэтому повтор ответа пользователем отработает верно.
+                        # One bad update must not kill polling. Step stays put so a user retry works.
                         log.exception("ошибка на апдейте %s", update_id)
 
-    async def _call(self, client: httpx.AsyncClient, method: str, **payload: JSONValue) -> JSONValue:
+    async def _call(
+        self, client: httpx.AsyncClient, method: str, **payload: JSONValue
+    ) -> JSONValue:
         url = API_ROOT.format(token=self._token, method=method)
         try:
             response = await client.post(url, json=payload)
@@ -155,7 +156,7 @@ class LeadBot:
         self._completed[chat_id] = reply
 
     async def _handle(self, client: httpx.AsyncClient, update: dict[str, JSONValue]) -> None:
-        # Редактирование старого сообщения не является ответом на следующий вопрос.
+        # Editing an old message is not an answer to the next question.
         message = update.get("message")
         if not isinstance(message, dict):
             return
@@ -166,8 +167,7 @@ class LeadBot:
         if not isinstance(chat_id, int) or isinstance(chat_id, bool):
             return
         if chat.get("type") != "private":
-            # Заявки принимаем только в личке: в группе черновик был бы общим
-            # на всех участников, и ответы разных людей склеились бы в одну заявку.
+            # Private chats only: in a group the draft would be shared and replies would merge.
             log.debug("сообщение из чата типа %s пропущено", chat.get("type"))
             return
 
@@ -189,8 +189,7 @@ class LeadBot:
             self._completed.pop(chat_id, None)
             return
         if draft is None:
-            # Повтор после сбоя отправки подтверждения: отдаём тот же ответ,
-            # а не создаём вторую заявку.
+            # After a confirm-send failure: return the same reply, do not create a second lead.
             await self._send(client, chat_id, self._completed.get(chat_id) or FALLBACK)
             return
         if not text:
@@ -198,9 +197,7 @@ class LeadBot:
             return
         await self._step(client, draft, chat_id, text)
 
-    async def _step(
-        self, client: httpx.AsyncClient, draft: Draft, chat_id: int, text: str
-    ) -> None:
+    async def _step(self, client: httpx.AsyncClient, draft: Draft, chat_id: int, text: str) -> None:
         if draft.step == "name":
             await self._send(client, chat_id, ASK_CONTACT)
             draft.name = text[:128]
@@ -249,8 +246,7 @@ class LeadBot:
             await self._send(client, chat_id, SAVE_FAILED)
             return
         reply = DONE.format(lead_id=lead.id)
-        # Запоминаем ответ ДО отправки: если sendMessage упадёт, повторное
-        # сообщение пользователя получит тот же номер заявки, а не новый лид.
+        # Remember the reply BEFORE send: if sendMessage fails, a user retry gets the same lead id.
         self._drafts.pop(chat_id, None)
         self._remember_completed(chat_id, reply)
         log.info("лид #%s создан из бота", lead.id)

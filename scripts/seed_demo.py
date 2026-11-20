@@ -33,7 +33,7 @@ def main() -> int:
             print(f"тег «{tag}» на лид {lead_id}: {response.status_code}")
         for tag in ("срочно", "сайт"):
             page = client.get("/leads", params={"tag": tag})
-            print(f"фильтр «{tag}»: карточек {page.text.count('class=\"lead\"')}")
+            print(f"фильтр «{tag}»: карточек {page.text.count('class="lead"')}")
     return 0
 
 

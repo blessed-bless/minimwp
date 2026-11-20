@@ -1,4 +1,4 @@
-"""Операции над лидами. Общий слой для веб-CRM, бота и юзербота."""
+"""Lead operations shared by web CRM, bot, and userbot."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ PAGE_SIZE = 50
 
 
 def normalize_tag(raw: str) -> str:
-    """Тег — ключ фильтра, поэтому регистр и лишние пробелы схлопываем.
+    """Tag is a filter key, so fold case and strip extra spaces.
 
     Пробел внутри названия сохраняется: «контекстная реклама» — один тег.
     """
@@ -23,7 +23,7 @@ def normalize_tag(raw: str) -> str:
 
 
 def parse_tags(raw: str) -> list[str]:
-    """Поле «теги через запятую»: разделяет только запятая, как и обещает интерфейс."""
+    """Comma-separated tags field: split only on commas, as the UI promises."""
     return [part for part in (chunk.strip() for chunk in raw.split(",")) if part]
 
 
@@ -49,7 +49,10 @@ def _filtered_leads(tag: str | None, q: str) -> Select[tuple[Lead]]:
 
 
 async def list_leads(
-    session: AsyncSession, tag: str | None = None, q: str = "", page: int = 1,
+    session: AsyncSession,
+    tag: str | None = None,
+    q: str = "",
+    page: int = 1,
 ) -> list[Lead]:
     stmt = _filtered_leads(tag, q).order_by(Lead.created_at.desc(), Lead.id.desc())
     stmt = stmt.limit(PAGE_SIZE).offset((max(page, 1) - 1) * PAGE_SIZE)
@@ -70,7 +73,8 @@ async def get_lead_by_chat(session: AsyncSession, chat_id: int) -> Lead | None:
     stmt = (
         select(Lead)
         .where(Lead.tg_chat_id == chat_id, Lead.source == LeadSource.TELEGRAM_DM.value)
-        .order_by(Lead.id.desc()).limit(1)
+        .order_by(Lead.id.desc())
+        .limit(1)
     )
     return await session.scalar(stmt)
 
@@ -98,7 +102,7 @@ async def create_lead(
     for raw in tags:
         await _attach_tag(session, lead, raw)
     await session.commit()
-    # expire_on_commit=False: поля доступны без запроса после успешного коммита.
+    # expire_on_commit=False: fields stay readable after a successful commit.
     return lead
 
 
@@ -125,7 +129,7 @@ async def update_lead(
 
 
 async def append_to_request(session: AsyncSession, lead: Lead, text: str) -> Lead:
-    """Дозаписывает сообщение в запрос лида — используется юзерботом.
+    """Append a message to the lead request — used by the userbot.
 
     Склейка делается одним UPDATE на стороне базы, а не «прочитали в Python,
     собрали строку, записали»: два сообщения из одного чата могут обрабатываться
@@ -145,14 +149,13 @@ async def append_to_request(session: AsyncSession, lead: Lead, text: str) -> Lea
 
 
 async def get_or_create_tag(session: AsyncSession, name: str) -> Tag:
-    """Создаёт тег или возвращает существующий, переживая гонку двух сессий."""
+    """Create a tag or return the existing one, surviving a two-session race."""
     normalized = normalize_tag(name)
     tag = await session.scalar(select(Tag).where(Tag.name == normalized))
     if tag is not None:
         return tag
     try:
-        # SAVEPOINT: при конфликте уникальности откатывается только вставка тега,
-        # а не вся транзакция с лидом.
+        # SAVEPOINT: on unique conflict roll back only the tag insert, not the lead tx.
         async with session.begin_nested():
             tag = Tag(name=normalized)
             session.add(tag)

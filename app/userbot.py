@@ -1,4 +1,4 @@
-"""Пункт 2 ТЗ: входящие в обычный Telegram-аккаунт становятся лидами.
+"""TZ item 2: inbound DMs on a personal Telegram account become leads.
 
 Telethon работает от имени живого аккаунта, поэтому нужны api_id/api_hash
 с my.telegram.org и один раз — вход по номеру (scripts/userbot_login.py).
@@ -28,7 +28,7 @@ SESSION_PATH = BASE_DIR / "userbot.session"
 
 
 def build_client() -> TelegramClient:
-    """Создаёт Telethon-клиент. Импорт внутри, чтобы не тянуть его без нужды."""
+    """Build Telethon client. Import inside to avoid loading it when unused."""
     from telethon import TelegramClient
 
     return TelegramClient(str(SESSION_PATH), settings.api_id, settings.api_hash)
@@ -42,8 +42,8 @@ async def run() -> None:
     from telethon import events
 
     client = build_client()
-    # Не client.start(): он при отсутствии сессии спросит номер и код через input(),
-    # а фоновый процесс сервера некому об этом спросить — он просто зависнет.
+    # Do not call client.start(): without a session it prompts via input() and
+    # a background server process would hang with nobody to answer.
     await client.connect()
     if not await client.is_user_authorized():
         log.warning("нет авторизованной сессии, сначала запустите scripts/userbot_login.py")
@@ -64,7 +64,9 @@ async def run() -> None:
         if not text:
             return
         display = " ".join(
-            part for part in (getattr(sender, "first_name", ""), getattr(sender, "last_name", "")) if part
+            part
+            for part in (getattr(sender, "first_name", ""), getattr(sender, "last_name", ""))
+            if part
         ).strip()
         username = getattr(sender, "username", None)
         async with SessionLocal() as session:

@@ -20,8 +20,12 @@ def main() -> int:
     with httpx.Client(base_url=BASE, auth=auth, timeout=30, follow_redirects=False) as c:
         created = c.post(
             "/leads",
-            data={"name": "Ирина Проверкина", "contact": "+70000000000",
-                  "request_text": "Кириллица в поиске", "tags": "очень срочно"},
+            data={
+                "name": "Ирина Проверкина",
+                "contact": "+70000000000",
+                "request_text": "Кириллица в поиске",
+                "tags": "очень срочно",
+            },
         )
         lead_url = created.headers.get("location", "")
         print(f"создан лид: {created.status_code} {lead_url}")
@@ -35,8 +39,10 @@ def main() -> int:
 
         card = c.get(lead_url).text if lead_url else ""
         print(f"тег 'очень срочно' в карточке целиком: {'очень срочно' in card}")
-        print(f"тег распался на два ('очень' и 'срочно'): "
-              f"{('>очень<' in card) and ('>срочно<' in card)}")
+        print(
+            f"тег распался на два ('очень' и 'срочно'): "
+            f"{('>очень<' in card) and ('>срочно<' in card)}"
+        )
 
         big = c.get("/leads/99999999999999999999")
         print(f"огромный id -> {big.status_code}")
@@ -47,6 +53,7 @@ def main() -> int:
             lead_id = lead_url.rstrip("/").split("/")[-1]
             page = c.get(lead_url).text
             import re
+
             for tag_id in re.findall(rf"/leads/{lead_id}/tags/(\d+)/delete", page):
                 c.post(f"/leads/{lead_id}/tags/{tag_id}/delete")
             print(f"теги убраны у лида {lead_id}; удалить лид вручную: {lead_url}")

@@ -23,7 +23,7 @@ def main() -> int:
             response = client.post(f"/leads/{lead_id}/delete")
             print(f"лид {lead_id}: {response.status_code}")
         page = client.get("/leads")
-        print(f"осталось карточек в списке: {page.text.count('class=\"lead\"')}")
+        print(f"осталось карточек в списке: {page.text.count('class="lead"')}")
     return 0
 
 

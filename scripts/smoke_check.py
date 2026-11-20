@@ -25,17 +25,24 @@ async def check(client: httpx.AsyncClient) -> None:
         assert page.status_code == 200, "Список лидов недоступен"
         for name in names:
             response = await client.post(
-                "/leads", data={"name": name, "contact": "smoke@example.test", "request_text": suffix}
+                "/leads",
+                data={"name": name, "contact": "smoke@example.test", "request_text": suffix},
             )
             location = response.headers.get("location", "")
-            assert response.status_code == 303 and re.fullmatch(r"/leads/\d+", location), "Лид не создан"
+            assert response.status_code == 303 and re.fullmatch(r"/leads/\d+", location), (
+                "Лид не создан"
+            )
             created.append(location)
         tagged = await client.post(f"{created[0]}/tags", data={"tag": tag})
         assert tagged.status_code == 303, "Тег не добавлен"
         card = await client.get(created[0])
         assert card.status_code == 200 and tag in card.text, "Тег не виден в карточке"
         filtered = await client.get("/leads", params={"tag": tag, "q": suffix})
-        assert filtered.status_code == 200 and names[0] in filtered.text and names[1] not in filtered.text, "Фильтр неверен"
+        assert (
+            filtered.status_code == 200
+            and names[0] in filtered.text
+            and names[1] not in filtered.text
+        ), "Фильтр неверен"
         anon = await client.get("/leads", auth=None)
         assert anon.status_code == 401, "Нет защиты авторизацией"
     finally:
@@ -54,8 +61,10 @@ async def main() -> int:
     base = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000"
     try:
         async with httpx.AsyncClient(
-            base_url=base, auth=(settings.crm_user, settings.crm_password),
-            follow_redirects=False, timeout=20,
+            base_url=base,
+            auth=(settings.crm_user, settings.crm_password),
+            follow_redirects=False,
+            timeout=20,
         ) as client:
             await check(client)
     except (httpx.HTTPError, AssertionError, RuntimeError) as exc:

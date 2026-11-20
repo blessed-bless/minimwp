@@ -1,4 +1,4 @@
-"""Точка входа: FastAPI + бот и юзербот в одном процессе."""
+"""Entry point: FastAPI plus bot and userbot in one process."""
 
 from __future__ import annotations
 
@@ -21,13 +21,13 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
-# httpx пишет в лог полный URL запроса, а в нём лежит токен бота — приглушаем.
+# httpx logs full request URLs (includes bot token) — quiet it
 logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("crm")
 
 
 async def _supervise(name: str, coro_factory: Callable[[], Coroutine[None, None, None]]) -> None:
-    """Перезапускает фоновую задачу, если она упала не по отмене."""
+    """Restart a background task if it crashed (not cancelled)."""
     while True:
         try:
             await coro_factory()
