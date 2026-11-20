@@ -1,9 +1,9 @@
-"""HTTP-слой CRM: список лидов, карточка, ручное добавление, теги."""
+"""HTTP CRM layer: lead list, card, manual create, tags."""
 
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path as FilePath
 from typing import Annotated
 from urllib.parse import urlsplit
@@ -25,15 +25,15 @@ from app.models import STATUS_LABELS, LeadSource, LeadStatus
 
 templates = Jinja2Templates(directory=str(FilePath(__file__).parent / "templates"))
 
-# SQLite хранит id как 64-битное целое: всё, что больше, — заведомо не наш лид.
+# SQLite stores id as 64-bit int; anything larger cannot be our lead
 MAX_DB_INT = 9223372036854775807
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
 def local_dt(value: datetime, fmt: str = "%d.%m %H:%M") -> str:
-    """В базе время в UTC, показываем в часовом поясе сервера."""
+    """DB stores UTC; display in the server local timezone."""
     if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
+        value = value.replace(tzinfo=UTC)
     return value.astimezone().strftime(fmt)
 
 
@@ -47,7 +47,7 @@ TagIdDep = Annotated[int, Path(ge=1, le=MAX_DB_INT)]
 
 
 def require_same_origin(request: Request) -> None:
-    """Защита изменяющих запросов от отправки формы с чужого сайта.
+    """Block cross-site form posts for mutating requests.
 
     Basic Auth подтверждает, кто пользователь, но не то, что действие он затеял сам:
     браузер приложит учётные данные и к форме с постороннего домена. Поэтому для
@@ -75,7 +75,11 @@ router = APIRouter(dependencies=[Depends(require_same_origin)])
 
 async def render_http_error(request: Request, exc: StarletteHTTPException) -> Response:
     accept = request.headers.get("accept", "")
-    if "text/html" not in accept or request.url.path == "/healthz" or request.url.path.startswith("/api"):
+    if (
+        "text/html" not in accept
+        or request.url.path == "/healthz"
+        or request.url.path.startswith("/api")
+    ):
         return await http_exception_handler(request, exc)
     messages = {
         401: "Для входа в CRM нужны логин и пароль.",
@@ -84,11 +88,17 @@ async def render_http_error(request: Request, exc: StarletteHTTPException) -> Re
         422: "Проверьте поля формы и параметры поиска. Имя и контакт — до 128 символов, статус — из списка.",
     }
     return templates.TemplateResponse(
-        request, "error.html",
-        {"code": exc.status_code, "message": messages.get(
-            exc.status_code, exc.detail if exc.status_code == 400 else "Не удалось выполнить запрос."
-        )},
-        status_code=exc.status_code, headers=exc.headers,
+        request,
+        "error.html",
+        {
+            "code": exc.status_code,
+            "message": messages.get(
+                exc.status_code,
+                exc.detail if exc.status_code == 400 else "Не удалось выполнить запрос.",
+            ),
+        },
+        status_code=exc.status_code,
+        headers=exc.headers,
     )
 
 
@@ -151,8 +161,15 @@ async def leads_page(
     return templates.TemplateResponse(
         request,
         "leads.html",
-        {"leads": leads, "tags": tags, "active_tag": crud.normalize_tag(tag) if tag else None,
-         "q": q, "page": page, "total": total, "pages": pages},
+        {
+            "leads": leads,
+            "tags": tags,
+            "active_tag": crud.normalize_tag(tag) if tag else None,
+            "q": q,
+            "page": page,
+            "total": total,
+            "pages": pages,
+        },
     )
 
 
@@ -211,7 +228,9 @@ async def edit_lead(
 
 @router.post("/leads/{lead_id}/tags")
 async def add_lead_tag(
-    lead_id: LeadIdDep, session: SessionDep, _: AuthDep,
+    lead_id: LeadIdDep,
+    session: SessionDep,
+    _: AuthDep,
     tag: Annotated[str, Form(max_length=64)],
 ) -> RedirectResponse:
     lead = await _require_lead(session, lead_id)

@@ -1,8 +1,8 @@
-"""Модель данных CRM: лид и теги (many-to-many)."""
+"""CRM data model: lead and tags (many-to-many)."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from sqlalchemy import Column, DateTime, ForeignKey, String, Table, Text
@@ -14,7 +14,7 @@ class Base(DeclarativeBase):
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class LeadSource(StrEnum):
@@ -55,7 +55,7 @@ class Tag(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(48), unique=True, index=True)
 
-    leads: Mapped[list["Lead"]] = relationship(secondary=lead_tags, back_populates="tags")
+    leads: Mapped[list[Lead]] = relationship(secondary=lead_tags, back_populates="tags")
 
     def __repr__(self) -> str:
         return f"<Tag {self.name}>"
