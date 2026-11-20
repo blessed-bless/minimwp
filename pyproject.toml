@@ -1,0 +1,22 @@
+[project]
+name = "minimwp"
+version = "0.1.0"
+description = "Mini-CRM for agency leads from Telegram bot, DMs, and manual entry"
+requires-python = ">=3.12"
+authors = [{ name = "Богдан Щербинин" }]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008", "UP046", "UP047", "E501", "UP040"]
+
+[tool.ruff.format]
+quote-style = "double"
