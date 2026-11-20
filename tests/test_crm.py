@@ -110,16 +110,25 @@ async def test_bot_lead_is_listed_by_tag(client: AsyncClient) -> None:
 async def test_edit_fields_and_status(client: AsyncClient, status: str) -> None:
     created = await client.post("/leads", data={"name": "До правки"}, headers=AUTH)
     url = created.headers["location"]
-    response = await client.post(url, headers=AUTH, data={
-        "name": "После правки", "contact": "new@example.test",
-        "request_text": "Новый запрос", "lead_status": status,
-    })
+    response = await client.post(
+        url,
+        headers=AUTH,
+        data={
+            "name": "После правки",
+            "contact": "new@example.test",
+            "request_text": "Новый запрос",
+            "lead_status": status,
+        },
+    )
     assert response.status_code == 303
     async with SessionLocal() as session:
         lead = await session.get(Lead, int(url.rsplit("/", 1)[1]))
         assert lead is not None
         assert (lead.name, lead.contact, lead.request, lead.status) == (
-            "После правки", "new@example.test", "Новый запрос", status,
+            "После правки",
+            "new@example.test",
+            "Новый запрос",
+            status,
         )
 
 
@@ -160,13 +169,16 @@ async def test_api_errors_remain_json(client: AsyncClient) -> None:
     from app.web import render_http_error
     from starlette.exceptions import HTTPException
     from starlette.requests import Request
+
     request = Request({"type": "http", "path": "/healthz", "headers": [(b"accept", b"text/html")]})
     error = await render_http_error(request, HTTPException(401))
     assert error.media_type == "application/json"
 
 
 @pytest.mark.asyncio
-async def test_manual_creation_commits_once(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_manual_creation_commits_once(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     commits = 0
     original = AsyncSession.commit
 
@@ -176,7 +188,9 @@ async def test_manual_creation_commits_once(client: AsyncClient, monkeypatch: py
         await original(session)
 
     monkeypatch.setattr(AsyncSession, "commit", counted)
-    response = await client.post("/leads", headers=AUTH, data={"name": "Атомарный", "tags": "#Сайт, сайт, срочно, #"})
+    response = await client.post(
+        "/leads", headers=AUTH, data={"name": "Атомарный", "tags": "#Сайт, сайт, срочно, #"}
+    )
     assert response.status_code == 303 and commits == 1
     async with SessionLocal() as session:
         lead = await session.scalar(select(Lead))
@@ -185,8 +199,11 @@ async def test_manual_creation_commits_once(client: AsyncClient, monkeypatch: py
 
 
 @pytest.mark.asyncio
-async def test_manual_creation_rolls_back_on_tag_error(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_manual_creation_rolls_back_on_tag_error(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from app import crud
+
     original = crud.get_or_create_tag
 
     async def fail_second(session: AsyncSession, name: str) -> Tag:
@@ -196,7 +213,9 @@ async def test_manual_creation_rolls_back_on_tag_error(client: AsyncClient, monk
 
     monkeypatch.setattr(crud, "get_or_create_tag", fail_second)
     with pytest.raises(RuntimeError, match="Проверочная ошибка"):
-        await client.post("/leads", headers=AUTH, data={"name": "Не сохранится", "tags": "первый, ошибка"})
+        await client.post(
+            "/leads", headers=AUTH, data={"name": "Не сохранится", "tags": "первый, ошибка"}
+        )
     async with SessionLocal() as session:
         assert await session.scalar(select(func.count()).select_from(Lead)) == 0
         assert await session.scalar(select(func.count()).select_from(Tag)) == 0
@@ -234,7 +253,9 @@ async def test_pagination_preserves_filters(client: AsyncClient) -> None:
         await create_lead(session, name="Без тега", request="search")
         await create_lead(session, name="Без поиска", tags=["сайт"])
     first = await client.get("/leads", params={"q": "search", "tag": "сайт"}, headers=AUTH)
-    second = await client.get("/leads", params={"q": "search", "tag": "сайт", "page": 2}, headers=AUTH)
+    second = await client.get(
+        "/leads", params={"q": "search", "tag": "сайт", "page": 2}, headers=AUTH
+    )
     assert first.text.count('class="lead"') == 50
     assert second.text.count('class="lead"') == 1
     assert "Клиент 00" not in first.text and "Клиент 00" in second.text
@@ -243,19 +264,20 @@ async def test_pagination_preserves_filters(client: AsyncClient) -> None:
     assert (await client.get("/leads", params={"page": 0}, headers=AUTH)).status_code == 422
 
 
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("step", ["name", "contact", "request", "confirm"])
 async def test_bot_cancel_command(step: str, monkeypatch: pytest.MonkeyPatch) -> None:
     from app.bot import CANCELLED, Draft, LeadBot
     from unittest.mock import AsyncMock
+
     bot = LeadBot("test-token")
     bot._drafts[123] = Draft(step=step)
     send = AsyncMock()
     monkeypatch.setattr(bot, "_send", send)
     async with AsyncClient() as http:
-        await bot._handle(http, {"message": {"chat": {"id": 123, "type": "private"}, "text": "/cancel"}})
+        await bot._handle(
+            http, {"message": {"chat": {"id": 123, "type": "private"}, "text": "/cancel"}}
+        )
         send.assert_awaited_once_with(http, 123, CANCELLED)
     assert not bot._drafts
 
@@ -263,11 +285,13 @@ async def test_bot_cancel_command(step: str, monkeypatch: pytest.MonkeyPatch) ->
 @pytest.mark.asyncio
 async def test_userbot_without_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     import importlib
-    from dataclasses import replace
     from app.config import settings
     from app import userbot
+
     importlib.reload(userbot)
-    monkeypatch.setattr(userbot, "settings", replace(settings, api_id=None, api_hash=None))
+    monkeypatch.setattr(
+        userbot, "settings", settings.model_copy(update={"api_id": None, "api_hash": None})
+    )
 
     def forbidden() -> None:
         pytest.fail("Telethon не должен запускаться без ключей")
@@ -279,7 +303,10 @@ async def test_userbot_without_keys(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.asyncio
 async def test_smoke_empty_database_and_cleanup(client: AsyncClient) -> None:
     from scripts.smoke_check import check
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", auth=("admin", "test-pass")) as http:
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test", auth=("admin", "test-pass")
+    ) as http:
         await check(http)
         await check(http)
     async with SessionLocal() as session:
@@ -306,6 +333,7 @@ async def test_delete_preserves_shared_tag_and_requires_auth(client: AsyncClient
 async def test_smoke_cleans_up_after_failure(client: AsyncClient) -> None:
     from scripts.smoke_check import check
     from httpx import MockTransport, Request, Response
+
     transport = ASGITransport(app=app)
 
     async def fail_tags(request: Request) -> Response:
@@ -313,7 +341,9 @@ async def test_smoke_cleans_up_after_failure(client: AsyncClient) -> None:
             return Response(500)
         return await transport.handle_async_request(request)
 
-    async with AsyncClient(transport=MockTransport(fail_tags), base_url="http://test", auth=("admin", "test-pass")) as http:
+    async with AsyncClient(
+        transport=MockTransport(fail_tags), base_url="http://test", auth=("admin", "test-pass")
+    ) as http:
         with pytest.raises(AssertionError, match="Тег не добавлен"):
             await check(http)
     async with SessionLocal() as session:
@@ -325,6 +355,7 @@ async def test_smoke_cleans_up_after_failure(client: AsyncClient) -> None:
 async def test_bot_api_shapes_and_safe_errors() -> None:
     from app.bot import LeadBot
     from httpx import MockTransport, Request, Response
+
     responses = {
         "getMe": {"ok": True, "result": {"username": "test_bot"}},
         "getUpdates": {"ok": True, "result": [{"update_id": 7}]},
@@ -382,20 +413,36 @@ async def test_tag_forms_have_valid_ancestors(client: AsyncClient) -> None:
 
 def test_settings_repr_hides_credentials() -> None:
     from app.config import Settings
-    settings = Settings("test-token", None, "test-hash", "admin", "test-secret", "sqlite://private")
-    assert all(value not in repr(settings) for value in ["test-token", "test-hash", "test-secret", "sqlite://private"])
+
+    settings = Settings(
+        bot_token="test-token",
+        api_id=None,
+        api_hash="test-hash",
+        crm_user="admin",
+        crm_password="test-secret",
+        database_url="sqlite://private",
+    )
+    assert all(
+        value not in repr(settings)
+        for value in ["test-token", "test-hash", "test-secret", "sqlite://private"]
+    )
 
 
 @pytest.mark.asyncio
-async def test_bot_to_crm_tag_scenario(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_bot_to_crm_tag_scenario(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from app.bot import LeadBot
     from unittest.mock import AsyncMock
+
     bot = LeadBot("test-token")
     send = AsyncMock()
     monkeypatch.setattr(bot, "_send", send)
     async with AsyncClient() as http:
         for text in ["/start", "Заявка из диалога", "@customer", "Нужен сайт", "да"]:
-            await bot._handle(http, {"message": {"chat": {"id": 321, "type": "private"}, "text": text}})
+            await bot._handle(
+                http, {"message": {"chat": {"id": 321, "type": "private"}, "text": text}}
+            )
         # Повторное подтверждение не создаёт вторую заявку.
         await bot._handle(http, {"message": {"chat": {"id": 321, "type": "private"}, "text": "да"}})
     async with SessionLocal() as session:
@@ -403,7 +450,10 @@ async def test_bot_to_crm_tag_scenario(client: AsyncClient, monkeypatch: pytest.
         assert len(leads) == 1
         lead = leads[0]
         assert (lead.name, lead.contact, lead.request, lead.source) == (
-            "Заявка из диалога", "@customer", "Нужен сайт", "telegram_bot",
+            "Заявка из диалога",
+            "@customer",
+            "Нужен сайт",
+            "telegram_bot",
         )
         url = f"/leads/{lead.id}"
     tagged = await client.post(f"{url}/tags", data={"tag": "#Срочно"}, headers=AUTH)
@@ -413,19 +463,21 @@ async def test_bot_to_crm_tag_scenario(client: AsyncClient, monkeypatch: pytest.
     assert "срочно" in card.text and "Заявка из диалога" in filtered.text
 
 
-
-
 @pytest.mark.asyncio
 async def test_bot_ignores_edited_messages(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.bot import Draft, LeadBot
     from unittest.mock import AsyncMock
+
     bot = LeadBot("test-token")
     draft = Draft(step="contact", name="Анна")
     bot._drafts[123] = draft
     send = AsyncMock()
     monkeypatch.setattr(bot, "_send", send)
     async with AsyncClient() as http:
-        await bot._handle(http, {"edited_message": {"chat": {"id": 123, "type": "private"}, "text": "Анна исправлено"}})
+        await bot._handle(
+            http,
+            {"edited_message": {"chat": {"id": 123, "type": "private"}, "text": "Анна исправлено"}},
+        )
     assert draft.step == "contact" and draft.contact == ""
     send.assert_not_awaited()
 
@@ -444,11 +496,14 @@ async def test_bot_invalid_json_is_retryable() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("data,code", [
-    ({"name": " "}, 400),
-    ({"name": "Я" * 129}, 422),
-    ({"name": "Анна", "contact": "x" * 129}, 422),
-])
+@pytest.mark.parametrize(
+    "data,code",
+    [
+        ({"name": " "}, 400),
+        ({"name": "Я" * 129}, 422),
+        ({"name": "Анна", "contact": "x" * 129}, 422),
+    ],
+)
 async def test_invalid_manual_form(client: AsyncClient, data: dict[str, str], code: int) -> None:
     response = await client.post("/leads", data=data, headers={**AUTH, "Accept": "text/html"})
     assert response.status_code == code and "Ошибка" in response.text
@@ -458,11 +513,16 @@ async def test_invalid_manual_form(client: AsyncClient, data: dict[str, str], co
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("data,code", [
-    ({"name": " "}, 400),
-    ({"name": "Новое имя", "lead_status": "unknown"}, 422),
-])
-async def test_invalid_edit_does_not_change_lead(client: AsyncClient, data: dict[str, str], code: int) -> None:
+@pytest.mark.parametrize(
+    "data,code",
+    [
+        ({"name": " "}, 400),
+        ({"name": "Новое имя", "lead_status": "unknown"}, 422),
+    ],
+)
+async def test_invalid_edit_does_not_change_lead(
+    client: AsyncClient, data: dict[str, str], code: int
+) -> None:
     created = await client.post("/leads", data={"name": "До правки"}, headers=AUTH)
     url = created.headers["location"]
     response = await client.post(url, data=data, headers=AUTH)
@@ -476,7 +536,8 @@ async def test_invalid_edit_does_not_change_lead(client: AsyncClient, data: dict
 async def test_empty_tag_reports_error(client: AsyncClient) -> None:
     created = await client.post("/leads", data={"name": "Анна"}, headers=AUTH)
     response = await client.post(
-        created.headers["location"] + "/tags", data={"tag": "#"},
+        created.headers["location"] + "/tags",
+        data={"tag": "#"},
         headers={**AUTH, "Accept": "text/html"},
     )
     assert response.status_code == 400 and "Введите название тега" in response.text
@@ -501,6 +562,7 @@ async def test_polling_recovers_after_bad_json(monkeypatch: pytest.MonkeyPatch) 
     from httpx import MockTransport, Request, Response
     from unittest.mock import AsyncMock
     from app import bot as module
+
     polls = 0
 
     async def respond(request: Request) -> Response:
@@ -533,29 +595,42 @@ async def test_polling_recovers_after_bad_json(monkeypatch: pytest.MonkeyPatch) 
 @pytest.mark.asyncio
 async def test_userbot_chat_lookup_does_not_mix_sources(client: AsyncClient) -> None:
     from app.crud import get_lead_by_chat
+
     async with SessionLocal() as session:
         await create_lead(session, name="Из бота", source=LeadSource.TELEGRAM_BOT, tg_chat_id=123)
         assert await get_lead_by_chat(session, 123) is None
-        dm = await create_lead(session, name="Из лички", source=LeadSource.TELEGRAM_DM, tg_chat_id=123)
-        await create_lead(session, name="Ещё заявка боту", source=LeadSource.TELEGRAM_BOT, tg_chat_id=123)
+        dm = await create_lead(
+            session, name="Из лички", source=LeadSource.TELEGRAM_DM, tg_chat_id=123
+        )
+        await create_lead(
+            session, name="Ещё заявка боту", source=LeadSource.TELEGRAM_BOT, tg_chat_id=123
+        )
         found = await get_lead_by_chat(session, 123)
         assert found is not None and found.id == dm.id
 
 
 @pytest.mark.asyncio
-async def test_userbot_incoming_messages_without_network(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_userbot_incoming_messages_without_network(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from collections.abc import Awaitable, Callable
-    from dataclasses import replace
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
     from app import userbot
 
     EventHandler = Callable[[SimpleNamespace], Awaitable[None]]
 
-    def message(text: str, *, private: bool = True, outgoing: bool = False, bot: bool = False) -> SimpleNamespace:
-        sender = SimpleNamespace(first_name="Анна", last_name="Тестовая", username="test_user", bot=bot)
+    def message(
+        text: str, *, private: bool = True, outgoing: bool = False, bot: bool = False
+    ) -> SimpleNamespace:
+        sender = SimpleNamespace(
+            first_name="Анна", last_name="Тестовая", username="test_user", bot=bot
+        )
         return SimpleNamespace(
-            is_private=private, out=outgoing, chat_id=777, raw_text=text,
+            is_private=private,
+            out=outgoing,
+            chat_id=777,
+            raw_text=text,
             get_sender=AsyncMock(return_value=sender),
         )
 
@@ -581,6 +656,7 @@ async def test_userbot_incoming_messages_without_network(client: AsyncClient, mo
             def register(handler: EventHandler) -> EventHandler:
                 self.handler = handler
                 return handler
+
             return register
 
         async def run_until_disconnected(self) -> None:
@@ -593,11 +669,18 @@ async def test_userbot_incoming_messages_without_network(client: AsyncClient, mo
 
     async with SessionLocal() as session:
         existing = await create_lead(
-            session, name="Отдельная заявка", request="Из бота",
-            source=LeadSource.TELEGRAM_BOT, tg_chat_id=777,
+            session,
+            name="Отдельная заявка",
+            request="Из бота",
+            source=LeadSource.TELEGRAM_BOT,
+            tg_chat_id=777,
         )
         existing_id = existing.id
-    monkeypatch.setattr(userbot, "settings", replace(userbot.settings, api_id=1, api_hash="test-hash"))
+    monkeypatch.setattr(
+        userbot,
+        "settings",
+        userbot.settings.model_copy(update={"api_id": 1, "api_hash": "test-hash"}),
+    )
     monkeypatch.setattr(userbot, "build_client", TestClient)
     await userbot.run()
     async with SessionLocal() as session:
@@ -605,7 +688,10 @@ async def test_userbot_incoming_messages_without_network(client: AsyncClient, mo
         assert len(leads) == 2
         assert leads[0].id == existing_id and leads[0].request == "Из бота"
         assert (leads[1].name, leads[1].contact, leads[1].request, leads[1].source) == (
-            "Анна Тестовая", "@test_user", "Первый запрос\nУточнение задачи", "telegram_dm",
+            "Анна Тестовая",
+            "@test_user",
+            "Первый запрос\nУточнение задачи",
+            "telegram_dm",
         )
 
 
@@ -645,7 +731,11 @@ async def test_bot_dialog_without_network(
         if confirmation == "да":
             assert lead is not None and reply == DONE.format(lead_id=lead.id)
             assert (lead.name, lead.contact, lead.request, lead.tg_chat_id, lead.source) == (
-                "Анна", "@anna", "Нужен сайт", 123, LeadSource.TELEGRAM_BOT.value,
+                "Анна",
+                "@anna",
+                "Нужен сайт",
+                123,
+                LeadSource.TELEGRAM_BOT.value,
             )
         else:
             assert lead is None and reply == CANCELLED
@@ -741,8 +831,12 @@ async def test_bot_accepts_native_contact(monkeypatch: pytest.MonkeyPatch) -> No
     async with AsyncClient() as http:
         await bot._handle(
             http,
-            {"message": {"chat": {"id": 123, "type": "private"},
-                         "contact": {"phone_number": "+79990001122"}}},
+            {
+                "message": {
+                    "chat": {"id": 123, "type": "private"},
+                    "contact": {"phone_number": "+79990001122"},
+                }
+            },
         )
     assert send.await_args.args[2] == ASK_REQUEST
     assert bot._drafts[123].contact == "+79990001122"
@@ -827,9 +921,7 @@ async def test_tag_creation_survives_concurrent_insert(
         assert [tag.name for tag in lead.tags] == ["гонка"]
 
     async with SessionLocal() as check:
-        total = await check.scalar(
-            select(func.count()).select_from(Tag).where(Tag.name == "гонка")
-        )
+        total = await check.scalar(select(func.count()).select_from(Tag).where(Tag.name == "гонка"))
     assert total == 1
 
 
@@ -840,8 +932,11 @@ async def test_userbot_appends_do_not_overwrite(client: AsyncClient) -> None:
 
     async with SessionLocal() as session:
         lead = await create_lead(
-            session, name="Клиент", request="Первое",
-            source=LeadSource.TELEGRAM_DM, tg_chat_id=777,
+            session,
+            name="Клиент",
+            request="Первое",
+            source=LeadSource.TELEGRAM_DM,
+            tg_chat_id=777,
         )
         lead_id = lead.id
 
@@ -924,7 +1019,6 @@ async def test_userbot_stops_without_authorized_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Фоновый процесс не должен уходить в интерактивный ввод номера и кода."""
-    from dataclasses import replace
     from types import SimpleNamespace
 
     from app import userbot
@@ -951,7 +1045,9 @@ async def test_userbot_stops_without_authorized_session(
             pytest.fail("без сессии слушать нечего")
 
     monkeypatch.setattr(
-        userbot, "settings", replace(userbot.settings, api_id=1, api_hash="test-hash")
+        userbot,
+        "settings",
+        userbot.settings.model_copy(update={"api_id": 1, "api_hash": "test-hash"}),
     )
     monkeypatch.setattr(userbot, "build_client", UnauthorizedClient)
     await userbot.run()
