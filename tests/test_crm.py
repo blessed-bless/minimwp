@@ -27,8 +27,8 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from app.crud import add_tag, create_lead, list_leads  # noqa: E402
 from app.db import SessionLocal, engine  # noqa: E402
-from app.models import Base, Lead, LeadSource, Tag  # noqa: E402
 from app.main import app  # noqa: E402
+from app.models import Base, Lead, LeadSource, Tag  # noqa: E402
 
 AUTH = {"Authorization": "Basic " + base64.b64encode(b"admin:test-pass").decode()}
 
@@ -166,9 +166,10 @@ async def test_api_errors_remain_json(client: AsyncClient) -> None:
     assert response.status_code == 404 and "detail" in response.json()
     health = await client.get("/healthz", headers={"Accept": "text/html"})
     assert health.json() == {"status": "ok"}
-    from app.web import render_http_error
     from starlette.exceptions import HTTPException
     from starlette.requests import Request
+
+    from app.web import render_http_error
 
     request = Request({"type": "http", "path": "/healthz", "headers": [(b"accept", b"text/html")]})
     error = await render_http_error(request, HTTPException(401))
@@ -267,8 +268,9 @@ async def test_pagination_preserves_filters(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("step", ["name", "contact", "request", "confirm"])
 async def test_bot_cancel_command(step: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.bot import CANCELLED, Draft, LeadBot
     from unittest.mock import AsyncMock
+
+    from app.bot import CANCELLED, Draft, LeadBot
 
     bot = LeadBot("test-token")
     bot._drafts[123] = Draft(step=step)
@@ -285,8 +287,9 @@ async def test_bot_cancel_command(step: str, monkeypatch: pytest.MonkeyPatch) ->
 @pytest.mark.asyncio
 async def test_userbot_without_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     import importlib
-    from app.config import settings
+
     from app import userbot
+    from app.config import settings
 
     importlib.reload(userbot)
     monkeypatch.setattr(
@@ -331,8 +334,9 @@ async def test_delete_preserves_shared_tag_and_requires_auth(client: AsyncClient
 
 @pytest.mark.asyncio
 async def test_smoke_cleans_up_after_failure(client: AsyncClient) -> None:
-    from scripts.smoke_check import check
     from httpx import MockTransport, Request, Response
+
+    from scripts.smoke_check import check
 
     transport = ASGITransport(app=app)
 
@@ -353,8 +357,9 @@ async def test_smoke_cleans_up_after_failure(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_bot_api_shapes_and_safe_errors() -> None:
-    from app.bot import LeadBot
     from httpx import MockTransport, Request, Response
+
+    from app.bot import LeadBot
 
     responses = {
         "getMe": {"ok": True, "result": {"username": "test_bot"}},
@@ -432,8 +437,9 @@ def test_settings_repr_hides_credentials() -> None:
 async def test_bot_to_crm_tag_scenario(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app.bot import LeadBot
     from unittest.mock import AsyncMock
+
+    from app.bot import LeadBot
 
     bot = LeadBot("test-token")
     send = AsyncMock()
@@ -465,8 +471,9 @@ async def test_bot_to_crm_tag_scenario(
 
 @pytest.mark.asyncio
 async def test_bot_ignores_edited_messages(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.bot import Draft, LeadBot
     from unittest.mock import AsyncMock
+
+    from app.bot import Draft, LeadBot
 
     bot = LeadBot("test-token")
     draft = Draft(step="contact", name="Анна")
@@ -484,8 +491,9 @@ async def test_bot_ignores_edited_messages(monkeypatch: pytest.MonkeyPatch) -> N
 
 @pytest.mark.asyncio
 async def test_bot_invalid_json_is_retryable() -> None:
-    from app.bot import LeadBot
     from httpx import MockTransport, Request, Response
+
+    from app.bot import LeadBot
 
     async def response(request: Request) -> Response:
         return Response(200, text="Временный сбой")
@@ -558,10 +566,12 @@ async def test_page_out_of_range_and_no_search_results(client: AsyncClient) -> N
 @pytest.mark.asyncio
 async def test_polling_recovers_after_bad_json(monkeypatch: pytest.MonkeyPatch) -> None:
     import asyncio
-    from app.bot import Draft, LeadBot
-    from httpx import MockTransport, Request, Response
     from unittest.mock import AsyncMock
+
+    from httpx import MockTransport, Request, Response
+
     from app import bot as module
+    from app.bot import Draft, LeadBot
 
     polls = 0
 
@@ -616,6 +626,7 @@ async def test_userbot_incoming_messages_without_network(
     from collections.abc import Awaitable, Callable
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
+
     from app import userbot
 
     EventHandler = Callable[[SimpleNamespace], Awaitable[None]]
